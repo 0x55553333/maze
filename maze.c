@@ -3,10 +3,14 @@
 #include <memory.h>
 #include <time.h>
 #include <ncurses.h>
+#include <menu.h>
 #define make_border(x) do {    wborder(x, '|', '|', '-', '-', '+', '+', '+', '+'); } while (0)
 int w_width, w_height;
 int width, height, cmd_width, cmd_height, b_read_in;
 WINDOW *play_window, *cmd_window, *start_window;
+char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame"};
+ITEM **menubars;
+MENU * cmd_menu;
 
 void save(void)
 {
@@ -58,22 +62,61 @@ void print_start_window()
 }
 
 void create_main_windows()
-{
+{ char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame"};
   play_window = newwin(height, width, 0, 0);
   cmd_window = newwin(cmd_height, cmd_width, 0, width);
-  make_border(play_window);
-  make_border(cmd_window);
+  box(play_window, 0, 0);
+  box(cmd_window, 0, 0);
   int cmd_y, cmd_x;
   getyx(cmd_window, cmd_y, cmd_x);
-  mvwprintw(cmd_window, cmd_y + 1, cmd_x + 1, "[CMD]");
+  menubars = (ITEM**) calloc(sizeof(menu)/sizeof(char*), sizeof(ITEM*));
+  for(int i = 0; i < sizeof(menu)/sizeof(char*); ++i) {
+    menubars[i] = new_item(menu[i], menu[i]);
+  }
+  cmd_menu = new_menu(menubars);
+  set_menu_win(cmd_menu, cmd_window);
+  set_menu_mark(cmd_menu, " * ");
+  post_menu(cmd_menu);
+  //print_in_middle(cmd_menu, 1, 0, 40, "MazeMaker Commands", COLOR_PAIR(1));
   wrefresh(play_window);
   wrefresh(cmd_window);
 }
 
 void free_main_windows()
 {
+  unpost_menu(cmd_menu);
+  for(int i = 0; i < sizeof(menu)/sizeof(char*); ++i) free_item(menubars[i]);
+  free_menu(cmd_menu);
+  free(menubars);
   delwin(play_window);
   delwin(cmd_window);
+}
+
+void handle_cmd_window()
+{
+  int idx;
+  char ch;
+  while (1) {
+    ch = wgetch(cmd_window);
+    switch (ch) {
+      case 'Q':
+      case 'q':
+        free_main_windows();
+        exit(1);
+      case 't': return;
+      case 'w': 
+        menu_driver(cmd_menu, REQ_UP_ITEM);
+        break;
+      case 's':
+        menu_driver(cmd_menu, REQ_DOWN_ITEM);
+        break;
+      case KEY_ENTER:
+      case '\n':
+        idx = item_index(current_item(cmd_menu));
+        printw("%d toggled\n", idx);
+    }
+    wrefresh(cmd_window);
+  }
 }
 
 int main(void)
@@ -105,7 +148,9 @@ int main(void)
         break;
       case 'd':
         ++x; x = x > width-2 ? width-2 : x;
-      break;
+        break;
+      case 't':
+        handle_cmd_window();
       default: bk = ch;
     }
     bch = mvwinch(play_window, y, x) & A_CHARTEXT;
