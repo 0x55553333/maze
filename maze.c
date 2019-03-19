@@ -4,12 +4,42 @@
 #include <time.h>
 #include <ncurses.h>
 #include <menu.h>
+#include <form.h>
+#include <string.h>
 int w_width, w_height;
 int width, height, cmd_width, cmd_height, b_read_in;
 WINDOW *play_window, *cmd_window, *start_window;
 char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame"};
+char * menu_text[] = {"export to a given file", "show credits", "list all commands", "return to game", "return to terminal"};
 ITEM **menubars;
 MENU * cmd_menu;
+
+FIELD *filename_field;
+FORM *filename_form;
+
+void make_file_form()
+{
+  filename_field = new_field(1, 10, 4, 18, 0, 0); 
+  set_field_back(filename_field, A_UNDERLINE);  /* Print a line for the option  */
+  field_opts_off(filename_field, O_AUTOSKIP);   /* Don't go to next field when this */
+  filename_form = new_form(&filename_field);
+  set_form_win(filename_form, cmd_window);
+}
+
+char * trim(const char * in)
+{
+  size_t new_size = 0, in_size = strlen(in), ptr = 0;
+  for(size_t i = 0; i < in_size; ++i) 
+    if (in[i] != ' ' && in[i] != '\t') 
+      ++new_size;
+  char * out = malloc(new_size + 1);
+  memset(out, '\0', new_size);
+  for(size_t i = 0; i < in_size; ++i) 
+    if (in[i] != ' ' && in[i] != '\t') 
+      out[ptr++] = in[i];
+  return out;
+}
+
 int blk_color;
 void save(void)
 {
@@ -24,6 +54,16 @@ void save(void)
     fputc('\n', fp);
   }
   fclose(fp);
+}
+
+void save2file(FILE *fp)
+{
+  for(int i = 1; i < height - 1; ++i) {
+    for(int j = 1; j < width - 1; ++j) {
+      fputc(mvwinch(play_window, i, j) & A_CHARTEXT, fp);
+    }
+    fputc('\n', fp);
+  }
 }
 
 void print_start_window()
@@ -74,13 +114,14 @@ void create_main_windows()
   getyx(cmd_window, cmd_y, cmd_x);
   menubars = (ITEM**) calloc(sizeof(menu)/sizeof(char*), sizeof(ITEM*));
   for(int i = 0; i < sizeof(menu)/sizeof(char*); ++i) {
-    menubars[i] = new_item(menu[i], menu[i]);
+    menubars[i] = new_item(menu[i], menu_text[i]);
   }
   cmd_menu = new_menu(menubars);
   set_menu_win(cmd_menu, cmd_window);
   set_menu_sub(cmd_menu, derwin(cmd_window, 6, 38, 3, 1));
   set_menu_mark(cmd_menu, " * ");
   post_menu(cmd_menu);
+  make_file_form();
   wrefresh(play_window);
   wrefresh(cmd_window);
 }
@@ -89,10 +130,43 @@ void free_main_windows()
 {
   unpost_menu(cmd_menu);
   for(int i = 0; i < sizeof(menu)/sizeof(char*); ++i) free_item(menubars[i]);
+//  free_field(filename_field);
+//  free_form(filename_form);
   free_menu(cmd_menu);
   free(menubars);
   delwin(play_window);
   delwin(cmd_window);
+  endwin();
+}
+
+void handle_filename_form()
+{ int ch;
+  unpost_menu(cmd_menu);
+  post_form(filename_form);
+  while (1) {
+    ch = wgetch(cmd_window);
+    switch (ch) {
+      case 'q': goto go_back; 
+      case KEY_ENTER: 
+      case '\n':
+        {
+          form_driver(filename_form, REQ_VALIDATION); // force sync field buffer
+          char * sanitized_filename = trim(field_buffer(filename_field, 0));
+          FILE *fp = fopen(sanitized_filename, "w");
+          save2file(fp);
+          fclose(fp);
+          wprintw(cmd_window, "\nwritten to %s\n", sanitized_filename);
+          wprintw(cmd_window, "Press any key to go back...");
+          free(sanitized_filename);
+          wgetch(cmd_window);
+          goto go_back;
+        }
+      default: form_driver(filename_form, ch);
+    } 
+  }
+go_back:
+  unpost_form(filename_form);
+  post_menu(cmd_menu);
 }
 
 void handle_cmd_window()
@@ -116,6 +190,10 @@ void handle_cmd_window()
       case KEY_ENTER:
       case '\n':
         idx = item_index(current_item(cmd_menu));
+        switch (idx) {
+          case 0: handle_filename_form(); break;
+          case 4: free_main_windows(); exit(0); break;
+        }
         printw("%d toggled\n", idx);
     }
     wrefresh(cmd_window);
@@ -184,7 +262,6 @@ int main(void)
   }
   do_exit:
   free_main_windows();
-  endwin();
   return 0;
 }
 
