@@ -162,7 +162,15 @@ int main(void)
         else wattron(play_window, COLOR_PAIR(1));
         break;
       case 't':
-        handle_cmd_window();
+        handle_cmd_window(); break;
+      case 'z':
+        ++x; ++y; break;
+      case 'x':
+        --x; --y; break;
+      case 'c':
+        ++x; --y; break;
+      case 'v':
+        --x; ++y; break;
       default: 
         wattroff(play_window, COLOR_PAIR(1));
         bk = ch;
