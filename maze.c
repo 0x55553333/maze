@@ -17,6 +17,12 @@ MENU * cmd_menu;
 FIELD *filename_field;
 FORM *filename_form;
 
+inline static void clear_window_contents(WINDOW* w)
+{
+  wclear(w);
+  box(w, 0, 0);
+}
+
 void make_file_form()
 {
   filename_field = new_field(1, 10, 4, 18, 0, 0); 
@@ -147,7 +153,7 @@ void handle_filename_form()
     ch = wgetch(cmd_window);
     switch (ch) {
       case 'q': goto go_back; 
-      case KEY_ENTER: 
+      case (char)KEY_ENTER: 
       case '\n':
         {
           form_driver(filename_form, REQ_VALIDATION); // force sync field buffer
@@ -166,6 +172,7 @@ void handle_filename_form()
   }
 go_back:
   unpost_form(filename_form);
+  clear_window_contents(cmd_window);
   post_menu(cmd_menu);
 }
 
@@ -187,11 +194,42 @@ void handle_cmd_window()
       case 's':
         menu_driver(cmd_menu, REQ_DOWN_ITEM);
         break;
-      case KEY_ENTER:
+      case (char)KEY_ENTER:
       case '\n':
         idx = item_index(current_item(cmd_menu));
         switch (idx) {
-          case 0: handle_filename_form(); break;
+          case 0: /* Write2file */
+            handle_filename_form(); break;
+          case 1: /* Showcreds */
+            unpost_menu(cmd_menu); 
+            mvwprintw(cmd_window, 1, 1, "MazeMaker v0.1a"); 
+            mvwprintw(cmd_window, 2, 1, "Press any key to go back");
+            wgetch(cmd_window);
+            clear_window_contents(cmd_window);
+            post_menu(cmd_menu);
+            break;
+          case 2: /* Showhelp */
+            unpost_menu(cmd_menu);
+            mvwprintw(cmd_window, 1, 1, "Q\tSave & quit");
+            mvwprintw(cmd_window, 2, 1, "q\tQuit");
+            mvwprintw(cmd_window, 3, 1, "b\tToggle/untoggle block");
+            mvwprintw(cmd_window, 4, 1, "w\tMove cursor up");
+            mvwprintw(cmd_window, 5, 1, "s\tMove cursor down");
+            mvwprintw(cmd_window, 6, 1, "a\tMove cursor left");
+            mvwprintw(cmd_window, 7, 1, "d\tMove cursor right");
+            mvwprintw(cmd_window, 8, 1, "z\tMove cursor southeast");
+            mvwprintw(cmd_window, 9, 1, "x\tMove cursor northwest");
+            mvwprintw(cmd_window, 10, 1, "c\tMove curosr northeast");
+            mvwprintw(cmd_window, 11, 1, "v\tMove cursor southwest");
+            mvwprintw(cmd_window, 12, 1, "t\tToggle between windows");
+            mvwprintw(cmd_window, 13, 1, "i\tStart/end drawing");
+            mvwprintw(cmd_window, 14, 1, "Use any other key to specify color");
+            wgetch(cmd_window);
+            clear_window_contents(cmd_window);
+            post_menu(cmd_menu);
+            break;
+          case 3: /* Toggleback */
+            return;
           case 4: free_main_windows(); exit(0); break;
         }
         printw("%d toggled\n", idx);
@@ -200,18 +238,11 @@ void handle_cmd_window()
   }
 }
 
-int main(void)
+void loop()
 {
   int y = 1, x = 1, do_print = 0;
   char bch, ch, bk = ' ';
-  initscr(); start_color();
-  init_pair(1, COLOR_BLACK, COLOR_WHITE);
-  attroff(COLOR_PAIR(1));
-  noecho();
-  getmaxyx(stdscr, w_height, w_width); 
-  print_start_window();
-  create_main_windows();
-  while (1) {
+    while (1) {
     ch = wgetch(play_window);
     switch (ch) {
       case 'i': do_print = 1 - do_print;
@@ -220,7 +251,7 @@ int main(void)
         break;
       case 'Q':
         save();
-      case 'q': 
+      case 'q':
         goto do_exit;
       case 'w':
         --y; y = y < 1 ? 1 : y;
@@ -249,19 +280,33 @@ int main(void)
         ++x; --y; break;
       case 'v':
         --x; ++y; break;
-      default: 
+      default:
         wattroff(play_window, COLOR_PAIR(1));
         bk = ch;
     }
     bch = mvwinch(play_window, y, x) & A_CHARTEXT;
     if (do_print) {
-      if (!blk_color) 
+      if (!blk_color)
         mvwprintw(play_window, y, x, "%c", bk);
     } else mvwprintw(play_window, y, x, "%c", bch);
     wrefresh(play_window);
   }
   do_exit:
   free_main_windows();
+}
+
+int main(void)
+{
+  int y = 1, x = 1, do_print = 0;
+  char bch, ch, bk = ' ';
+  initscr(); start_color();
+  init_pair(1, COLOR_BLACK, COLOR_WHITE);
+  attroff(COLOR_PAIR(1));
+  noecho();
+  getmaxyx(stdscr, w_height, w_width); 
+  print_start_window();
+  create_main_windows();
+  loop();
   return 0;
 }
 
