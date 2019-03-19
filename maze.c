@@ -47,8 +47,12 @@ void print_start_window()
   cmd_height = w_height - height;
   cmd_width = w_width - width;
   ++y;
-  mvwprintw(start_window, y, x, "width=%d, height=%d, cmd_width=%d, cmd_height=%d, ok?", width, height, cmd_width, cmd_height );
-  wgetch(start_window);
+  mvwprintw(start_window, y, x, "width=%d, height=%d, ok? [y/n]", width, height, cmd_width, cmd_height );
+  if (wgetch(start_window) != 'y') {
+    delwin(start_window);
+    endwin();
+    exit(1);
+  } 
   noecho();
   delwin(start_window);
 }
@@ -82,7 +86,6 @@ int main(void)
   print_start_window();
   create_main_windows();
   while (1) {
-//    if (!do_print) mvwprintw(play_window, y, x, "%c", bch);
     ch = wgetch(play_window);
     switch (ch) {
       case 'i': do_print = 1 - do_print;
@@ -105,11 +108,11 @@ int main(void)
       break;
       default: bk = ch;
     }
-    bch = mvinch(y, x) & A_CHARTEXT;
+    bch = mvwinch(play_window, y, x) & A_CHARTEXT;
     if (do_print) {
       mvwprintw(play_window, y, x, "%c", bk);
-      wrefresh(play_window);
-    }
+    } else mvwprintw(play_window, y, x, "%c", bch);
+    wrefresh(play_window);
   }
   do_exit:
   free_main_windows();
