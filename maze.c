@@ -4,20 +4,23 @@
 #include <time.h>
 #include <ncurses.h>
 #include <menu.h>
-#define make_border(x) do {    wborder(x, '|', '|', '-', '-', '+', '+', '+', '+'); } while (0)
 int w_width, w_height;
 int width, height, cmd_width, cmd_height, b_read_in;
 WINDOW *play_window, *cmd_window, *start_window;
 char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame"};
 ITEM **menubars;
 MENU * cmd_menu;
-
+int blk_color;
 void save(void)
 {
   FILE *fp = fopen("out.maze", "w");
   for(int i = 1; i < height - 1; ++i) {
-    for(int j = 1; j < width - 1; ++j) 
-      fputc(mvwinch(play_window, i, j) & A_CHARTEXT, fp);
+    for(int j = 1; j < width - 1; ++j) {
+      if (mvwinch(play_window, i, j) & A_COLOR) 
+        fputc('0', fp);
+      else
+        fputc(mvwinch(play_window, i, j) & A_CHARTEXT, fp);
+    }
     fputc('\n', fp);
   }
   fclose(fp);
@@ -27,7 +30,7 @@ void print_start_window()
 { int y, x;
   echo();
   start_window = newwin(30, 30, 0, 0);
-  make_border(start_window);
+  box(start_window, 0, 0);
   getyx(start_window, y, x);
   ++y; ++x;
   mvwprintw(start_window, y, x, "MazeMaker v0.1 alpha");
@@ -75,9 +78,9 @@ void create_main_windows()
   }
   cmd_menu = new_menu(menubars);
   set_menu_win(cmd_menu, cmd_window);
+  set_menu_sub(cmd_menu, derwin(cmd_window, 6, 38, 3, 1));
   set_menu_mark(cmd_menu, " * ");
   post_menu(cmd_menu);
-  //print_in_middle(cmd_menu, 1, 0, 40, "MazeMaker Commands", COLOR_PAIR(1));
   wrefresh(play_window);
   wrefresh(cmd_window);
 }
@@ -123,7 +126,9 @@ int main(void)
 {
   int y = 1, x = 1, do_print = 0;
   char bch, ch, bk = ' ';
-  initscr();
+  initscr(); start_color();
+  init_pair(1, COLOR_BLACK, COLOR_WHITE);
+  attroff(COLOR_PAIR(1));
   noecho();
   getmaxyx(stdscr, w_height, w_width); 
   print_start_window();
@@ -132,6 +137,8 @@ int main(void)
     ch = wgetch(play_window);
     switch (ch) {
       case 'i': do_print = 1 - do_print;
+                if (!do_print && blk_color) wattroff(play_window, COLOR_PAIR(1));
+                else if (blk_color) wattron(play_window, COLOR_PAIR(1));
         break;
       case 'Q':
         save();
@@ -149,13 +156,21 @@ int main(void)
       case 'd':
         ++x; x = x > width-2 ? width-2 : x;
         break;
+      case 'b':
+        blk_color = 1 - blk_color;
+        if (!blk_color) wattroff(play_window, COLOR_PAIR(1));
+        else wattron(play_window, COLOR_PAIR(1));
+        break;
       case 't':
         handle_cmd_window();
-      default: bk = ch;
+      default: 
+        wattroff(play_window, COLOR_PAIR(1));
+        bk = ch;
     }
     bch = mvwinch(play_window, y, x) & A_CHARTEXT;
     if (do_print) {
-      mvwprintw(play_window, y, x, "%c", bk);
+      if (!blk_color) 
+        mvwprintw(play_window, y, x, "%c", bk);
     } else mvwprintw(play_window, y, x, "%c", bch);
     wrefresh(play_window);
   }
