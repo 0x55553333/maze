@@ -110,10 +110,16 @@ struct PriorityQueue* rec_merge_pair(struct PriorityQueue* pq)
 
 struct PriorityQueue* delete_min_pq(struct PriorityQueue* pq)
 {
-  struct PriorityQueue *ch = pq->child;
+  struct PriorityQueue *ch = pq->child, p = ch, q = ch;
   if (ch == NULL) {
     return NULL;
   } else {
+   while (p != NULL) {
+    q = p->right;
+    p->root = p;
+    p->left = p->right = NULL;
+    p = q;
+   }
    return rec_merge_pair(ch); 
   } 
 }
@@ -201,7 +207,7 @@ inline static void clear_window_contents(WINDOW* w)
 void floodfill(WINDOW *win, int y, int x, int t, int r, int not, int do8way)
 {
   static int d[8][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
-  int dn = do8way ? 4 : 8, curr_txt, curr_clr;
+  int dn = do8way ? 8 : 4, curr_txt, curr_clr;
   if (y < 0 || y >= height - 1 || x < 0 || x >= width - 1) return;
   curr_txt = mvwinch(win, y, x) & A_CHARTEXT;
   curr_clr = mvwinch(win, y, x) & A_COLOR; 
@@ -218,6 +224,60 @@ void floodfill(WINDOW *win, int y, int x, int t, int r, int not, int do8way)
   }
 }
 
+int bfs(WINDOW *win, int sy, int sx, int ty, int tx, int t, int is8way)
+{
+   static int d[8][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
+   struct Queue * q = make_queue();
+   int visited[getmaxy(win)][getmaxx(win)], 
+       dist[getmaxy(win)][getmaxx(win)];
+   int dn = is8way ? 8 : 4;
+   memset(visited, 0, sizeof(visited));
+   dist[sy][sx] = 0;
+   push_back(q, make_node(q, sy, sx));
+   while (q->size != 0) {
+    struct Node * n = front(q); pop_front(q);
+    if (!visited[n->i][n->j]) {
+      visited[n->i][n->j] = 1;
+      if (n->i == ty && n->j == tx) break;
+      for(int i = 0; i < dn; ++i) {
+        int i_next = n->i + d[i][0], j_next = n->j + d[i][1];
+        if (!visited[i_next][j_next] && (mvwinch(win, i_next, j_next) & A_CHARTEXT) == t) {
+          dist[i_next][j_next] = dist[n->i][n->j] + 1;
+          struct Node * next_n = make_node(q, i_next, j_next);
+          push_back(q, next_n);
+        }
+      }
+    }
+    free_node(n);
+   }
+   free_queue(q);
+   return visited[ty][tx] ? dist[ty][tx] : -1;
+}
+
+int dijkstra(WINDOW *win, int sy, int sx, int ty, int tx, int t, int is8way, int (*get_weight)(int i, int j, int ni, int nj))
+{
+  static int d[8][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
+  int dist[getmaxy(win)][getmaxx(win)], visited[getmaxy(win)][getmaxx(win)];
+  struct PriorityQueue * pq = makePriorityQueue(sy, sx, get_weight(sy, sx));
+  int dn = is8way ? 8 : 4;
+  memset(visited, 0, sizeof(visited));
+  for(int i = 0; i < getmaxy(win); ++i) 
+    for(int j = 0; j < getmaxx(win); ++j)
+      dist[i][j] = 0xfffff;
+  while (pq->root->size != 0) {
+    PriorityQueue * n = pq->root; 
+    pq = delete_min_pq(pq);
+    if (!visited[n->i][n->j]) {
+      visited[n->i][n->j] = 1;
+      for(int i = 0; i < dn; ++i) {
+        int next_i = n->i + d[i][0], next_j = n->j + d[i][1];
+        if (dist[next_i][next_j] >= dist[n->i][n->j] + get_weight(n
+      }
+    }
+    free(n);
+  }
+  return 0;
+}
 
 void make_file_form()
 {
