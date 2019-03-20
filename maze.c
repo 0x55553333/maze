@@ -15,9 +15,89 @@ char * menu_text[] = {"export to a given file", "show credits", "list all comman
 char * floodfill_form_text[]  = {"start_x:", "start_y:", "target:", "replacement:", "not:", "8way:"};
 ITEM **menubars;
 MENU * cmd_menu;
-
 FIELD *filename_field;
 FORM *filename_form;
+struct Node {
+  struct Queue* q;
+  struct Node* next;
+  int i, j;
+};
+
+struct Queue {
+  struct Node* head;
+  struct Node* end;
+  int size;
+};
+
+struct Node* make_node(struct Queue *q, int i, int j)
+{
+  struct Node *n = malloc(sizeof(struct Node));
+  n->q = q;
+  n->next = NULL;
+  n->i = i; n->j = j;
+  return n;
+}
+
+void free_node(struct Node* n)
+{
+  free(n);
+}
+
+struct Queue* make_queue()
+{
+  struct Queue *q = malloc(sizeof(struct Queue));
+  q->head = q->end = NULL;
+  q->size = 0;
+  return q;
+}
+
+void push_front(struct Queue* q, struct Node* n)
+{
+  n->next = q->head;
+  q->head = n;
+  if (q->end == NULL) q->end = n;
+  ++q->size;
+}
+
+void push_back(struct Queue* q, struct Node* n)
+{
+  n->next = NULL;
+  if (q->end != NULL) {
+    q->end->next = n;
+    q->end = n;
+  } else {
+    q->end = n;
+    q->head = n;
+  }
+  ++q->size;
+}
+
+struct Node* front(struct Queue* q)
+{
+  return q->head;
+}
+
+struct Node* back(struct Queue* q)
+{
+  return q->end;
+}
+
+void pop_front(struct Queue* q)
+{
+  if (q->head == NULL) return;
+  if (q->end == q->head) q->end = q->head->next;
+  q->head = q->head->next;
+  --q->size;
+}
+
+void pop_back(struct Queue* q, struct Node* n)
+{
+  if (q->end == NULL) return;
+  if (q->end == q->head) q->head = q->end->next;
+  q->end = q->end->next;
+  --q->size;
+}
+
 inline static void clear_window_contents(WINDOW* w)
 {
   wclear(w);
