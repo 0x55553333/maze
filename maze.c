@@ -29,6 +29,14 @@ struct Queue {
   int size;
 };
 
+struct PriorityQueue {
+  struct PriorityQueue * child;
+  struct PriorityQueue * left;
+  struct PriorityQueue * right;
+  struct PriorityQueue * root;
+  int size, i, j, w;
+};
+
 struct Node* make_node(struct Queue *q, int i, int j)
 {
   struct Node *n = malloc(sizeof(struct Node));
@@ -43,12 +51,92 @@ void free_node(struct Node* n)
   free(n);
 }
 
+struct PriorityQueue* makePriorityQueue(int i, int j, int w)
+{
+  struct PriorityQueue * pq = malloc(sizeof(struct PriorityQueue));
+  pq->size = 1;
+  pq->left = pq->right = NULL;
+  pq->root = pq;
+  pq->i = i; pq->j = j; pq->w = w;
+  return pq;
+}
+
+struct PriorityQueue* link_pq(struct PriorityQueue* lhs, struct PriorityQueue* rhs)
+{
+  if (lhs->w <= rhs->w) {
+    ++lhs->size;
+    rhs->root = lhs->root; 
+    rhs->right = lhs->child;
+    rhs->left = lhs;
+    lhs->child = rhs;
+    if (rhs->right != NULL) rhs->right->left = rhs;
+    return rhs;
+  } else {
+    ++rhs->size;
+    lhs->root = rhs->root;
+    lhs->right = rhs->child;
+    lhs->left = rhs;
+    rhs->child = lhs;
+    if (lhs->right != NULL) lhs->right->left = lhs;
+  }
+  return lhs;
+}
+
+struct PriorityQueue* find_min(struct PriorityQueue* pq)
+{
+  if (pq->root == NULL) return pq;
+  return pq->root;
+}
+
+// inserts x into h
+struct PriorityQueue* insert_pq(int i, int j, int w, struct PriorityQueue* h)
+{
+  return link_pq(makePriorityQueue(i, j, w), h);
+}
+
+struct PriorityQueue* meld_pq(struct PriorityQueue* h1, struct PriorityQueue* h2)
+{
+  return link_pq(h1, h2);
+}
+
+struct PriorityQueue* rec_merge_pair(struct PriorityQueue* pq)
+{
+  if (pq->right == NULL) return pq;
+  else {
+    if (pq->right->right == NULL) return meld_pq(pq, pq->right);
+    else return meld_pq(meld_pq(pq, pq->right), pq->right->right);
+  }
+}
+
+struct PriorityQueue* delete_min_pq(struct PriorityQueue* pq)
+{
+  struct PriorityQueue *ch = pq->child;
+  if (ch == NULL) {
+    return NULL;
+  } else {
+   return rec_merge_pair(ch); 
+  } 
+}
+
 struct Queue* make_queue()
 {
   struct Queue *q = malloc(sizeof(struct Queue));
   q->head = q->end = NULL;
   q->size = 0;
   return q;
+}
+
+void free_queue(struct Queue* q)
+{
+  struct Node *n = q->head, *b;
+  while (n != NULL) {
+    b = n->next;
+    free_node(n);
+    n = b;
+  }
+  q->size =0;
+  q->head = q->end = NULL;
+  free(q);
 }
 
 void push_front(struct Queue* q, struct Node* n)
@@ -103,6 +191,7 @@ inline static void clear_window_contents(WINDOW* w)
   wclear(w);
   box(w, 0, 0);
 }
+
 
 /*
   Recursive floodfill. 
