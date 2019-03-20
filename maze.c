@@ -9,18 +9,55 @@
 int w_width, w_height;
 int width, height, cmd_width, cmd_height, b_read_in;
 WINDOW *play_window, *cmd_window, *start_window;
-char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame"};
-char * menu_text[] = {"export to a given file", "show credits", "list all commands", "return to game", "return to terminal"};
+char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame", "Floodfill"};
+char * menu_text[] = {"export to a given file", "show credits", "list all commands", "return to game", "return to terminal", "Fill a connected region"};
 ITEM **menubars;
 MENU * cmd_menu;
 
 FIELD *filename_field;
-FORM *filename_form;
+FIELD *floodfill_fields[6]; // start_y, start_x, target, replacement, not, 8way
+FORM *filename_form, *floodfill_form;
 
 inline static void clear_window_contents(WINDOW* w)
 {
   wclear(w);
   box(w, 0, 0);
+}
+
+/*
+  Recursive floodfill. 
+  if not is turned on, fills everything _besides_ t with r.
+  if do8way is torned on, does 8-way floodfill instead of 4-way.
+*/
+void floodfill(WINDOW *win, int y, int x, int t, int r, int not, int do8way)
+{
+  static int d[8][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, -1}, {-1, 1}, {1, -1}};
+  int dn = do8way ? 4 : 8, curr_txt, curr_clr;
+  if (y < 0 || y >= height - 1 || x < 0 || x >= width - 1) return;
+  curr_txt = mvwinch(win, y, x) & A_CHARTEXT;
+  curr_clr = mvwinch(win, y, x) & A_COLOR; 
+  if (curr_txt == r) return;
+  if (not) {
+    if (curr_txt == t) return;
+    mvwprintw(win, y, x, "%c", r);
+  } else {
+    if (curr_txt != t) return;
+    mvwprintw(win, y, x, "%c", r);
+  }
+  for(int i = 0; i < dn; ++i) {
+    floodfill(win, y + d[i][0], x + d[i][1], t, r, not, do8way);
+  }
+}
+
+void make_floodfill_form()
+{
+  for(int i = 0; i < sizeof(floodfill_fields)/sizeof(FIELD*); ++i) {
+    floodfill_fields[i] = new_field(i+1, 10, 4, 18, 1, 0); // height, width, toprow, leftcol, offscreen, nbuffers
+    set_field_back(floodfill_fields[i], A_UNDERLINE);
+    field_opts_off(floodfill_fields[i], O_AUTOSKIP);
+  }
+  floodfill_form = new_form(floodfill_fields);
+  set_form_win(floodfill_form, cmd_window);
 }
 
 void make_file_form()
@@ -128,6 +165,7 @@ void create_main_windows()
   set_menu_mark(cmd_menu, " * ");
   post_menu(cmd_menu);
   make_file_form();
+  make_floodfill_form();
   wrefresh(play_window);
   wrefresh(cmd_window);
 }
@@ -172,6 +210,23 @@ void handle_filename_form()
   }
 go_back:
   unpost_form(filename_form);
+  clear_window_contents(cmd_window);
+  post_menu(cmd_menu);
+}
+
+void handle_floodfill_form()
+{
+  int ch;
+  unpost_menu(cmd_menu);
+  post_form(floodfill_form);
+  while (1) {
+    ch = wgetch(cmd_window);
+    switch (ch) {
+      case 'q': goto go_back_floodfill;
+    }
+  }
+go_back_floodfill:
+  unpost_form(floodfill_form);
   clear_window_contents(cmd_window);
   post_menu(cmd_menu);
 }
