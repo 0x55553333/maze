@@ -6,18 +6,18 @@
 #include <menu.h>
 #include <form.h>
 #include <string.h>
+#include <assert.h>
 int w_width, w_height;
 int width, height, cmd_width, cmd_height, b_read_in;
 WINDOW *play_window, *cmd_window, *start_window;
 char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame", "Floodfill"};
 char * menu_text[] = {"export to a given file", "show credits", "list all commands", "return to game", "return to terminal", "Fill a connected region"};
+char * floodfill_form_text[]  = {"start_x:", "start_y:", "target:", "replacement:", "not:", "8way:"};
 ITEM **menubars;
 MENU * cmd_menu;
 
 FIELD *filename_field;
-FIELD *floodfill_fields[6]; // start_y, start_x, target, replacement, not, 8way
-FORM *filename_form, *floodfill_form;
-
+FORM *filename_form;
 inline static void clear_window_contents(WINDOW* w)
 {
   wclear(w);
@@ -49,16 +49,6 @@ void floodfill(WINDOW *win, int y, int x, int t, int r, int not, int do8way)
   }
 }
 
-void make_floodfill_form()
-{
-  for(int i = 0; i < sizeof(floodfill_fields)/sizeof(FIELD*); ++i) {
-    floodfill_fields[i] = new_field(i+1, 10, 4, 18, 1, 0); // height, width, toprow, leftcol, offscreen, nbuffers
-    set_field_back(floodfill_fields[i], A_UNDERLINE);
-    field_opts_off(floodfill_fields[i], O_AUTOSKIP);
-  }
-  floodfill_form = new_form(floodfill_fields);
-  set_form_win(floodfill_form, cmd_window);
-}
 
 void make_file_form()
 {
@@ -148,24 +138,24 @@ void print_start_window()
 }
 
 void create_main_windows()
-{ char * menu[] = {"Write2file", "Showcreds", "Showhelp", "Toggleback", "Quitgame"};
+{
   play_window = newwin(height, width, 0, 0);
   cmd_window = newwin(cmd_height, cmd_width, 0, width);
   box(play_window, 0, 0);
   box(cmd_window, 0, 0);
   int cmd_y, cmd_x;
   getyx(cmd_window, cmd_y, cmd_x);
-  menubars = (ITEM**) calloc(sizeof(menu)/sizeof(char*), sizeof(ITEM*));
+  menubars = (ITEM**) calloc(sizeof(menu)/sizeof(char*)+1, sizeof(ITEM*));
   for(int i = 0; i < sizeof(menu)/sizeof(char*); ++i) {
     menubars[i] = new_item(menu[i], menu_text[i]);
   }
+  menubars[sizeof(menu)/sizeof(char*)] = NULL; // guard
   cmd_menu = new_menu(menubars);
   set_menu_win(cmd_menu, cmd_window);
   set_menu_sub(cmd_menu, derwin(cmd_window, 6, 38, 3, 1));
   set_menu_mark(cmd_menu, " * ");
   post_menu(cmd_menu);
   make_file_form();
-  make_floodfill_form();
   wrefresh(play_window);
   wrefresh(cmd_window);
 }
@@ -216,17 +206,37 @@ go_back:
 
 void handle_floodfill_form()
 {
-  int ch;
+  int y = 1, foc = 0;
+  char ch;
   unpost_menu(cmd_menu);
-  post_form(floodfill_form);
+  clear_window_contents(cmd_window);
+  wborder(cmd_window, 1, 3, 1, getmaxx(cmd_window)/2-1, 0, 0, 0, 0);
+  wborder(cmd_window, 1, 3, getmaxx(cmd_window)/2, getmaxx(cmd_window)-1, 0, 0, 0, 0);
+  attron(COLOR_PAIR(1));
+  mvwprintw(cmd_window, 2, 2, "Select x");
+  attroff(COLOR_PAIR(1));
+  mvwprintw(cmd_window, 2, getmaxx(cmd_window)/2+1, "Go back");
   while (1) {
-    ch = wgetch(cmd_window);
-    switch (ch) {
-      case 'q': goto go_back_floodfill;
+    int ch = wgetch(cmd_window);
+    if (ch == KEY_LEFT || ch == KEY_RIGHT) {
+      if (!foc) {
+        foc = 1 - foc;
+        attroff(COLOR_PAIR(1));
+        mvwprintw(cmd_window, 2, 2, "Select x");
+        attron(COLOR_PAIR(1));
+        mvwprintw(cmd_window, 2, getmaxx(cmd_window)/2+1, "Go back");
+        attroff(COLOR_PAIR(1));
+      } else {
+        attron(COLOR_PAIR(1));
+        mvwprintw(cmd_window, 2, 2, "Select x");
+        attroff(COLOR_PAIR(1));
+        mvwprintw(cmd_window, 2, getmaxx(cmd_window)/2+1, "Go back");
+      }
+    } else if (ch == KEY_ENTER) {
+      break;
     }
   }
 go_back_floodfill:
-  unpost_form(floodfill_form);
   clear_window_contents(cmd_window);
   post_menu(cmd_menu);
 }
@@ -286,6 +296,7 @@ void handle_cmd_window()
           case 3: /* Toggleback */
             return;
           case 4: free_main_windows(); exit(0); break;
+          case 5: handle_floodfill_form(); break;
         }
         printw("%d toggled\n", idx);
     }
